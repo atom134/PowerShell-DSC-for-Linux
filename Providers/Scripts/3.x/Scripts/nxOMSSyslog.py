@@ -22,7 +22,7 @@ oms_rsyslog_conf_path = '/etc/opt/omi/conf/omsconfig/rsyslog-oms.conf'
 conf_path = ''
 
 
-def init_vars(SyslogSource):
+def init_vars(SyslogSource, WorkspaceID):
     global conf_path
     for source in SyslogSource:
         if source['Severities'] is not None:

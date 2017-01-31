@@ -1858,7 +1858,7 @@ static MI_CONST MI_Qualifier MSFT_nxOMSSyslogResource_Description_qual =
     &MSFT_nxOMSSyslogResource_Description_qual_value
 };
 
-static MI_CONST MI_Char* MSFT_nxOMSSyslogResource_ClassVersion_qual_value = MI_T("2.0.0");
+static MI_CONST MI_Char* MSFT_nxOMSSyslogResource_ClassVersion_qual_value = MI_T("3.0.0");
 
 static MI_CONST MI_Qualifier MSFT_nxOMSSyslogResource_ClassVersion_qual =
 {
