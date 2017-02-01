@@ -40,12 +40,12 @@ def init_vars(SyslogSource, WorkspaceID):
     LG().Log('INFO', 'Config file is ' + conf_path + '.')
 
 
-def Set_Marshall(SyslogSource):
+def Set_Marshall(SyslogSource, WorkspaceID):
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return [0]
-    init_vars(SyslogSource)
-    retval = Set(SyslogSource)
+    init_vars(SyslogSource, WorkspaceID)
+    retval = Set(SyslogSource, WorkspaceID)
     if retval is False:
         retval = [-1]
     else:
@@ -53,27 +53,28 @@ def Set_Marshall(SyslogSource):
     return retval
 
 
-def Test_Marshall(SyslogSource):
+def Test_Marshall(SyslogSource, WorkspaceID):
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return [0]
-    init_vars(SyslogSource)
-    return Test(SyslogSource)
+    init_vars(SyslogSource, WorkspaceID)
+    return Test(SyslogSource, WorkspaceID)
 
 
-def Get_Marshall(SyslogSource):
+def Get_Marshall(SyslogSource, WorkspaceID):
     if os.path.exists(sysklog_conf_path):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return 0, {'SyslogSource':protocol.MI_InstanceA([])}
     arg_names = list(locals().keys())
-    init_vars(SyslogSource)
+    init_vars(SyslogSource, WorkspaceID)
     retval = 0
-    NewSource = Get(SyslogSource)
+    NewSource, NewWorkspaceID = Get(SyslogSource, WorkspaceID)
     for source in NewSource:
         if source['Severities'] is not None:
             source['Severities'] = protocol.MI_StringA(source['Severities'])
         source['Facility'] = protocol.MI_String(source['Facility'])
     SyslogSource = protocol.MI_InstanceA(NewSource)
+    WorkspaceID = protocol.MI_String(NewWorkspaceID)
     retd = {}
     ld = locals()
     for k in arg_names:
@@ -81,13 +82,13 @@ def Get_Marshall(SyslogSource):
     return retval, retd
 
 
-def Set(SyslogSource):
-    if Test(SyslogSource) == [0]:
+def Set(SyslogSource, WorkspaceID):
+    if Test(SyslogSource, WorkspaceID) == [0]:
         return [0]
     if conf_path == oms_syslog_ng_conf_path:
-        ret = UpdateSyslogNGConf(SyslogSource)
+        ret = UpdateSyslogNGConf(SyslogSource, WorkspaceID)
     else:
-        ret = UpdateSyslogConf(SyslogSource)
+        ret = UpdateSyslogConf(SyslogSource, WorkspaceID)
     if ret:
         ret = [0]
     else:
@@ -95,11 +96,13 @@ def Set(SyslogSource):
     return ret
 
 
-def Test(SyslogSource):
+def Test(SyslogSource, WorkspaceID):
     if conf_path == oms_syslog_ng_conf_path:
-        NewSource = ReadSyslogNGConf(SyslogSource)
+        NewSource, NewWorkspaceID = ReadSyslogNGConf(SyslogSource, WorkspaceID)
     else:
-        NewSource = ReadSyslogConf(SyslogSource)
+        NewSource, NewWorkspaceID = ReadSyslogConf(SyslogSource, WorkspaceID)
+    # TODO figure out how to test workspace id given that we may be able to extract it from omsagent.conf
+    # TODO also figure out if I should be parsing the syslogconf any differently
     SyslogSource=sorted(SyslogSource, key=lambda k: k['Facility'])
     for d in SyslogSource:
         found = False
@@ -111,10 +114,12 @@ def Test(SyslogSource):
         n['Severities'].sort()
     if SyslogSource != NewSource:
         return [-1]
+    if WorkspaceID != NewWorkspaceID: # TODO figure out how to set this value
+        return [-1]
     return [0]
 
 
-def Get(SyslogSource):
+def Get(SyslogSource, WorkspaceID):
     if conf_path == oms_syslog_ng_conf_path:
         NewSource = ReadSyslogNGConf(SyslogSource)
     else:
@@ -122,7 +127,7 @@ def Get(SyslogSource):
     for d in NewSource:
         if d['Severities'] == ['none']:
             d['Severities'] = []
-    return NewSource
+    return NewSource, NewWorkspaceID
 
 
 def ReadSyslogConf(SyslogSource):
