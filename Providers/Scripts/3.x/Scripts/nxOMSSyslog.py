@@ -66,7 +66,7 @@ def Get_Marshall(SyslogSource, WorkspaceID):
         LG().Log('ERROR', 'Sysklogd is unsupported.')
         return 0, {'SyslogSource':protocol.MI_InstanceA([])}
     arg_names = list(locals().keys())
-    init_vars(SyslogSource, WorkspaceID)
+    init_vars(SyslogSource, WorkspaceID) # TODO resolve; we can assume here that WorkspaceID has value like SyslogSource does and nxPackage uses things here https://github.com/Microsoft/PowerShell-DSC-for-Linux/blob/master/Providers/Scripts/2.6x-2.7x/Scripts/nxPackage.py#L348
     retval = 0
     NewSource, NewWorkspaceID = Get(SyslogSource, WorkspaceID)
     for source in NewSource:
@@ -103,6 +103,8 @@ def Test(SyslogSource, WorkspaceID):
         NewSource, NewWorkspaceID = ReadSyslogConf(SyslogSource, WorkspaceID)
     # TODO figure out how to test workspace id given that we may be able to extract it from omsagent.conf
     # TODO also figure out if I should be parsing the syslogconf any differently
+    if WorkspaceID != NewWorkspaceID:
+        return [-1]
     SyslogSource=sorted(SyslogSource, key=lambda k: k['Facility'])
     for d in SyslogSource:
         found = False
@@ -114,23 +116,22 @@ def Test(SyslogSource, WorkspaceID):
         n['Severities'].sort()
     if SyslogSource != NewSource:
         return [-1]
-    if WorkspaceID != NewWorkspaceID: # TODO figure out how to set this value
-        return [-1]
     return [0]
 
 
 def Get(SyslogSource, WorkspaceID):
     if conf_path == oms_syslog_ng_conf_path:
-        NewSource = ReadSyslogNGConf(SyslogSource)
+        NewSource, NewWorkspaceID = ReadSyslogNGConf(SyslogSource, WorkspaceID)
     else:
-        NewSource = ReadSyslogConf(SyslogSource)
+        NewSource, NewWorkspaceID = ReadSyslogConf(SyslogSource, WorkspaceID)
     for d in NewSource:
         if d['Severities'] == ['none']:
             d['Severities'] = []
     return NewSource, NewWorkspaceID
 
 
-def ReadSyslogConf(SyslogSource):
+def ReadSyslogConf(SyslogSource, WorkspaceID):
+    # TODO find the right section in the conf for the WorkspaceID and return it
     out = []
     txt = ''
     if len(SyslogSource) == 0:
@@ -151,7 +152,12 @@ def ReadSyslogConf(SyslogSource):
         except:
             LG().Log('ERROR', 'Unable to read ' + src_conf_path + '.')
             return out
-    facility_search = r'^(.*?)@.*?25224$'
+    workspace = str(WorkspaceID)  # should match regex ([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})
+    workspace_search = r'^# OMS Syslog collection for workspace (' + workspace + ')\n(.*@[0-9\.\:]*\n){1,20}$'
+    facility_search = r'
+# TODO working idea: r'^# OMS Syslog collection for workspace ([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\n((.*?)@[0-9\.\:]*\n){1,20}'
+    workspace_re = re.compile(workspace_search, re.M)
+    facility_search = r'^(.*?)@.*?25224$' #TODO change this to be more dynamic, because we can't assume that the primary workspace hasn't been removed and 25224 is freed
     facility_re = re.compile(facility_search, re.M)
     for line in facility_re.findall(txt):
         l = line.replace('=', '')
@@ -161,10 +167,12 @@ def ReadSyslogConf(SyslogSource):
         for sev in l:
             sevs.append(sev.split('.')[1])
         out.append({'Facility': fac, 'Severities': sevs})
-    return out
+    return out  # TODO return workspaceID as well (format? type?)
 
 
-def UpdateSyslogConf(SyslogSource):
+def UpdateSyslogConf(SyslogSource, WorkspaceID): #TODO update this to write in the workspace ID
+    # TODO: If this configuration is (conceptually) getting passed from the workspace to the agent, then I'm only going to have a single workspace ID to deal with
+    # TODO: Find my workspace ID in the conf file and ONLY replace that section of the conf in this method
     arg = ''
     if 'rsyslog' in conf_path:
         if os.path.exists('/etc/rsyslog.d'):
@@ -204,7 +212,8 @@ def UpdateSyslogConf(SyslogSource):
     return True
 
 
-def ReadSyslogNGConf(SyslogSource):
+def ReadSyslogNGConf(SyslogSource, WorkspaceID):
+    #TODO
     out = []
     txt = ''
     try:
@@ -223,10 +232,11 @@ def ReadSyslogNGConf(SyslogSource):
             else:
                 sevs.append(s[1])
         out.append({'Facility': s[0], 'Severities': sevs})
-    return out
+    return out  # TODO update to return WorkspaceID as well (format? type?)
 
 
-def UpdateSyslogNGConf(SyslogSource):
+def UpdateSyslogNGConf(SyslogSource, WorkspaceID):
+    #TODO
     txt = ''
     try:
         txt = codecs.open(syslog_ng_conf_path, 'r', 'utf8').read()
