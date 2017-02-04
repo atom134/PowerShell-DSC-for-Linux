@@ -50,6 +50,37 @@ if not os.path.isdir(modulePath):
 
 print("Removing module " + moduleName)
 
+# special section for nxOMSAutomationWorker module
+# the Linux Hybrid worker needs to be killed before the module is removed
+# also a good idea to remove the state.conf file
+# we preserve the worker.conf file in case the user wants to preserve his settings
+if moduleName == "nxOMSAutomationWorker":
+    state_conf_location = "/var/opt/microsoft/omsagent/state/automationworker/state.conf"
+    config_state_section = "state"
+    config_pid_key = "pid"
+    import signal
+    try:
+        import ConfigParser
+    except ImportError:
+        # ConfigParser is named configparser in python 3x
+        import configparser as ConfigParser
+
+    if os.path.isfile(state_conf_location):
+        parser = ConfigParser.ConfigParser()
+        try:
+            # try to read the PID of the worker and make a best effort attempt to kill it
+            # don't fail uninstall if it cannot be killed
+            parser.read(state_conf_location)
+            worker_process_id = parser.get(config_state_section, config_pid_key)
+            os.kill(int(worker_process_id), signal.SIGTERM)
+            os.remove(state_conf_location)
+        except ConfigParser.NoSectionError:
+            pass
+        except ConfigParser.NoOptionError:
+            pass
+        except OSError:
+            pass
+
 
 resourcelist = os.listdir(modulePath + "/DSCResources")
 for resource in resourcelist:
